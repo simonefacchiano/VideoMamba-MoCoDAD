@@ -1,5 +1,7 @@
 # Copyright (c) 2015-present, Facebook, Inc.
 # All rights reserved.
+
+########################################################################################################################
 import os
 import torch
 import torch.nn as nn
@@ -32,11 +34,18 @@ _MODELS = {
     "videomamba_s16_in1k": os.path.join(MODEL_PATH, "videomamba_s16_in1k_res224.pth"),
     "videomamba_m16_in1k": os.path.join(MODEL_PATH, "videomamba_m16_in1k_res224.pth"),
 }
+########################################################################################################################
 
-
+# VEDIAMO SE CAMBIA
 class Block(nn.Module):
     def __init__(
-        self, dim, mixer_cls, norm_cls=nn.LayerNorm, fused_add_norm=False, residual_in_fp32=False,drop_path=0.,
+        self,
+        dim, # Dimensionality of the input (and output) tensor
+        mixer_cls, # Mixer layer
+        norm_cls=nn.LayerNorm, # Normalization layer. Defaults to nn.LayerNorm.
+        fused_add_norm=False, # Boolean indicating whether to fuse addition and normalization. It is related to the skip connections
+        residual_in_fp32=False, # Residuals stored in 32-bit floating-point format. Defaults to False
+        drop_path=0., # https://paperswithcode.com/method/droppath
     ):
         """
         Simple block wrapping a mixer class with LayerNorm/RMSNorm and residual connection"

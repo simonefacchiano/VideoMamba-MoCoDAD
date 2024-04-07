@@ -110,7 +110,7 @@ class Block(nn.Module):
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
         return self.mixer.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
 
-
+# Questa funzione è importante
 def create_block(
     d_model,
     ssm_cfg=None,
@@ -125,7 +125,7 @@ def create_block(
     dtype=None,
 ): 
     '''
-    Funzione utilizzata per creare unìistanza di blocco della classe Block.
+    Funzione utilizzata per creare un'istanza di blocco della classe Block.
     Assegna anche un indice al blocco
     '''
     factory_kwargs = {"device": device, "dtype": dtype}
@@ -195,7 +195,7 @@ def _init_weights(
 
 def segm_init_weights(m):
     '''
-    Non ho ben capito quando possa essere usata, ma questa funzione inizializza dei pesi, usando una Normale Tronncata (nel caso di un nn.Linear), oppure setta i bias=0 e i pesi=1 nel caso di nn.LayerNorm'''
+    Non ho ben capito quando possa essere usata, ma questa funzione inizializza dei pesi, usando una Normale Troncata (nel caso di un nn.Linear), oppure setta i bias=0 e i pesi=1 nel caso di nn.LayerNorm'''
     if isinstance(m, nn.Linear):
         trunc_normal_(m.weight, std=0.02)
         if isinstance(m, nn.Linear) and m.bias is not None:
@@ -220,7 +220,8 @@ class PatchEmbed(nn.Module):
         self.num_patches = num_patches
         self.tubelet_size = kernel_size
 
-        # La proiezione avviene tramite un layer di 3D Convolution;
+        # La proiezione avviene tramite un layer di 3D Convolution. Come scritto nel paper:
+        # "We first use 3D convolution [...] to project the input videos X^v into L non-overlapping spatiotemporal patches X^p "
         self.proj = nn.Conv3d(
             in_chans, embed_dim, 
             kernel_size=(kernel_size, patch_size[0], patch_size[1]),
@@ -237,7 +238,7 @@ class VisionMamba(nn.Module):
             self, 
             img_size=224, 
             patch_size=16, 
-            depth=24, 
+            depth=24, # depth specifica quanti layer (mamba blocks) ci saranno. basta fare: "layer for layer in range(depth)"
             embed_dim=192, 
             channels=3, 
             num_classes=1000,
@@ -249,7 +250,7 @@ class VisionMamba(nn.Module):
             fused_add_norm=True,
             rms_norm=True, 
             residual_in_fp32=True,
-            bimamba=True,
+            bimamba=True, # il codice di questo lo trovi in mamba -> modules -> mamba_simple, dove inizia con "forked from https://github.com/hustvl/Vim"
             # video
             kernel_size=1, 
             num_frames=8, 
@@ -280,8 +281,13 @@ class VisionMamba(nn.Module):
         )
         num_patches = self.patch_embed.num_patches
 
+        # Si inizializzano ora 3 parametri: cls_token, positional_embedding e temporal_embedding.
+        # Ricordiamo infatti che, come scritto nel paper:
+        # "The sequence of tokens input to the VideoMamba encoder is:
+        # X = [X_cls, X] + pos_embedding + temp_embedding
+        # where Xcls is a learnable classification token that is prepended to the start of the sequence."
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim)) # tensore 1 x 1 x embed_dim pieno di zeri
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, self.embed_dim)) # idem ma con dimensioni diverse
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, self.embed_dim)) # idem ma con dimensioni diverse: POSITIONAL EMBEDDING
         self.temporal_pos_embedding = nn.Parameter(torch.zeros(1, num_frames // kernel_size, embed_dim)) # idem ma con dimensioni diverse
         # NOTE: gli oggetti di tipo nn.Parameter sono sottoclassi di nn.Module. Quindi, in automatico vengono registrati come parametri del modello, e saranno soggetti ad ottimizzazione durante il training
         self.pos_drop = nn.Dropout(p=drop_rate) # p=drop_rate è la probabilità di dropout
@@ -290,10 +296,14 @@ class VisionMamba(nn.Module):
         # "all nn.Identity does is forwarding the input given to it (basically no-op)"
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity() # qui crea un Linear Layer in cui la dimensione degli input è self.num_features, mentre la dimensione dell'putput è num_classes
 
+        # Create a rule for depth decay: https://paperswithcode.com/method/stochastic-depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         inter_dpr = [0.0] + dpr
+        
         self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
-        # mamba blocks
+        
+        # Mamba blocks:
+        # come scritto nel paper: "The tokens X are then passed through by L stacked B-Mamba blocks"
         self.layers = nn.ModuleList(
             [
                 create_block(
@@ -306,21 +316,24 @@ class VisionMamba(nn.Module):
                     layer_idx=i,
                     bimamba=bimamba,
                     drop_path=inter_dpr[i],
-                    **factory_kwargs,
+                    **factory_kwargs, # il doppio * serve a inserire il contenuto del deizionario come input, senza specificarne uno alla volta
                 )
                 for i in range(depth)
             ]
         )
         
-        # output head
+        # Il paper continua: "The representation of [CLS] token at the final layer is processed by normalization and linear layer for classification."
+        # Io credo che il linear layer a cui si riferisce è "head", mentr il NormalizationLayer è quello definito immediatamente qui sotto.
+        # Output head: blocco di normalizzazione --> LayerNorm o RMSNorm, con argomenti embed_dim; epsilon_norm; factory_kwargs (device e dtype)
         self.norm_f = (nn.LayerNorm if not rms_norm else RMSNorm)(embed_dim, eps=norm_epsilon, **factory_kwargs)
 
         # original init
-        self.apply(segm_init_weights)
-        self.head.apply(segm_init_weights)
-        trunc_normal_(self.pos_embed, std=.02)
+        self.apply(segm_init_weights) # applica la funzione segm_init_weights a tutti i moduli del modello VisionMamba. Ricorda che questa funzione inizializzava i pesi dei layer, distinguendo tra layer nn.Linear e LayerNorm
+        self.head.apply(segm_init_weights) # fa la stessa cosa per head, che dovrebbe essere il layer finale
+        trunc_normal_(self.pos_embed, std=.02) # qui inizializza i pesi del layer di embedding
 
-        # mamba init
+        # mamba init:
+        # di preciso non ho capito cosa fa di diverso rispetto alla due funzioni della righe sopra, oltre a star applicando una funzione diversa
         self.apply(
             partial(
                 _init_weights,
@@ -337,25 +350,36 @@ class VisionMamba(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
+        '''
+        Restituisce i nomi di parametri che non devono essere sottoposti a decay durante l'ottimizzazione
+        '''
         return {"pos_embed", "cls_token", "temporal_pos_embedding"}
     
     def get_num_layers(self):
+        '''
+        Restituisce il numero di layers del modello
+        '''
         return len(self.layers)
 
     @torch.jit.ignore()
     def load_pretrained(self, checkpoint_path, prefix=""):
-        _load_weights(self, checkpoint_path, prefix)
+        '''
+        Qui se ho capito bene carica semplicemente i pesi del modello pre-trainato. Dentro prefix, ci va il path di questo modello
+        '''
+        _load_weights(self, checkpoint_path, prefix) # questa funzione stava negli import iniziali
+
 
     def forward_features(self, x, inference_params=None):
-        x = self.patch_embed(x)
+        x = self.patch_embed(x) # L'input passa attraverso patch_embed, che proiettava x in embedding delle varie patch
         B, C, T, H, W = x.shape
-        x = x.permute(0, 2, 3, 4, 1).reshape(B * T, H * W, C)
+        x = x.permute(0, 2, 3, 4, 1).reshape(B * T, H * W, C) # qui fa solo un reshape per far matchare le dimensioni
 
-        cls_token = self.cls_token.expand(x.shape[0], -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        x = torch.cat((cls_token, x), dim=1)
-        x = x + self.pos_embed
 
-        # temporal pos
+        cls_token = self.cls_token.expand(x.shape[0], -1, -1)  # (stole cls_tokens impl from Phil Wang) qui si crea il class token...
+        x = torch.cat((cls_token, x), dim=1) # ... che si concatena ad x...
+        x = x + self.pos_embed # ... e infe si sommano i POSITIONAL EMBEDDINGS
+
+        # temporal pos: qui è un grande BHO
         cls_tokens = x[:B, :1, :]
         x = x[:, 1:]
         x = rearrange(x, '(b t) n m -> (b n) t m', b=B, t=T)
@@ -399,7 +423,7 @@ class VisionMamba(nn.Module):
             )
 
         # return only cls token
-        return hidden_states[:, 0, :]
+        return hidden_states[:, 0, :] # si ritorna solo questo, che quindi dovrebbe rappresentare da solo l'intero input
 
     def forward(self, x, inference_params=None):
         x = self.forward_features(x, inference_params)
@@ -408,6 +432,9 @@ class VisionMamba(nn.Module):
 
 
 def inflate_weight(weight_2d, time_dim, center=True):
+    '''
+    Prende un tensore 2D di pesi e lo trasforma in 3D
+    '''
     print(f'Init center: {center}')
     if center:
         weight_3d = torch.zeros(*weight_2d.shape)

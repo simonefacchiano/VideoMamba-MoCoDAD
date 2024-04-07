@@ -188,8 +188,7 @@ class PatchEmbed(nn.Module):
 
 
 class Linear_Decoder(nn.Module):
-    def __init__(self, output_dim=768, embed_dim=768, 
-                 norm_layer=nn.LayerNorm, clip_norm_type='l2'):
+    def __init__(self, output_dim=768, embed_dim=768, norm_layer=nn.LayerNorm, clip_norm_type='l2'):
         super().__init__()
         self.clip_norm_type = clip_norm_type
         print(f'Normalization Type: {clip_norm_type}')

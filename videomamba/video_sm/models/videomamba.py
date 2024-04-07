@@ -36,7 +36,7 @@ _MODELS = {
 }
 ########################################################################################################################
 
-# Prova prova
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -228,7 +228,7 @@ class PatchEmbed(nn.Module):
         )
     
     def forward(self, x):
-        x = self.proj(x)
+        x = self.proj(x) # dove proj() è la funzione definita qui sopra
         return x
     
 
@@ -280,13 +280,15 @@ class VisionMamba(nn.Module):
         )
         num_patches = self.patch_embed.num_patches
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, self.embed_dim))
-        self.temporal_pos_embedding = nn.Parameter(torch.zeros(1, num_frames // kernel_size, embed_dim))
-        self.pos_drop = nn.Dropout(p=drop_rate)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim)) # tensore 1 x 1 x embed_dim pieno di zeri
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, self.embed_dim)) # idem ma con dimensioni diverse
+        self.temporal_pos_embedding = nn.Parameter(torch.zeros(1, num_frames // kernel_size, embed_dim)) # idem ma con dimensioni diverse
+        # NOTE: gli oggetti di tipo nn.Parameter sono sottoclassi di nn.Module. Quindi, in automatico vengono registrati come parametri del modello, e saranno soggetti ad ottimizzazione durante il training
+        self.pos_drop = nn.Dropout(p=drop_rate) # p=drop_rate è la probabilità di dropout
 
-        self.head_drop = nn.Dropout(fc_drop_rate) if fc_drop_rate > 0 else nn.Identity()
-        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        self.head_drop = nn.Dropout(fc_drop_rate) if fc_drop_rate > 0 else nn.Identity() # se fc_drop_rate > 0 crea un Dropout Layer. Altrimenti, crea un layer nn.Identity. Come puoi leggere qui: https://stackoverflow.com/questions/64229717/what-is-the-idea-behind-using-nn-identity-for-residual-learning
+        # "all nn.Identity does is forwarding the input given to it (basically no-op)"
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity() # qui crea un Linear Layer in cui la dimensione degli input è self.num_features, mentre la dimensione dell'putput è num_classes
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         inter_dpr = [0.0] + dpr

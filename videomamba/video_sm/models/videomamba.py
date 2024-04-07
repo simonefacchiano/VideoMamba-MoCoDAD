@@ -36,7 +36,7 @@ _MODELS = {
 }
 ########################################################################################################################
 
-# VEDIAMO SE CAMBIA
+# Prova prova
 class Block(nn.Module):
     def __init__(
         self,
@@ -66,7 +66,7 @@ class Block(nn.Module):
         self.norm = norm_cls(dim)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         if self.fused_add_norm:
-            assert RMSNorm is not None, "RMSNorm import fails"
+            assert RMSNorm is not None, "RMSNorm import fails" #RMSNorm stands for "Root Mean Square Layer Normalization"
             assert isinstance(
                 self.norm, (nn.LayerNorm, RMSNorm)
             ), "Only LayerNorm and RMSNorm are supported for fused_add_norm"
@@ -82,12 +82,16 @@ class Block(nn.Module):
             residual: hidden_states = Mixer(LN(residual))
         """
         if not self.fused_add_norm:
+            # Questo dovrebbe riferirsi alle skip connections + la layer normalization. In pratica si mettono insieme le due operazioni per migliorare l'efficienza computazionale. Se questo booleano fused_add_norm=False, si procede a fare l'operazione. 
+            # Si sommano gli hidden states ai residui. Questi vengono poi normalizzati e diventano il nuovo hidden_states
             residual = (residual + self.drop_path(hidden_states)) if residual is not None else hidden_states
             hidden_states = self.norm(residual.to(dtype=self.norm.weight.dtype))
-            if self.residual_in_fp32:
+            if self.residual_in_fp32: # questo riguarda solo la precision
                 residual = residual.to(torch.float32)
         else:
+            # Si normalizza, usando RMSNorm oppure layer_norm
             fused_add_norm_fn = rms_norm_fn if isinstance(self.norm, RMSNorm) else layer_norm_fn
+            # Si applica l'operazione
             hidden_states, residual = fused_add_norm_fn(
                 hidden_states if residual is None else self.drop_path(hidden_states),
                 self.norm.weight,
@@ -119,13 +123,18 @@ def create_block(
     bimamba=True,
     device=None,
     dtype=None,
-):
+): 
+    '''
+    Funzione utilizzata per creare unìistanza di blocco della classe Block.
+    Assegna anche un indice al blocco
+    '''
     factory_kwargs = {"device": device, "dtype": dtype}
     if ssm_cfg is None:
         ssm_cfg = {}
     mixer_cls = partial(Mamba, layer_idx=layer_idx, bimamba=bimamba, **ssm_cfg, **factory_kwargs)
     norm_cls = partial(nn.LayerNorm if not rms_norm else RMSNorm, eps=norm_epsilon)
-    block = Block(
+    # CREA UN BLOCCO USANDO LA CLASSE DEFINITA SOPRA
+    block = Block( 
         d_model,
         mixer_cls,
         norm_cls=norm_cls,
@@ -145,14 +154,28 @@ def _init_weights(
     rescale_prenorm_residual=True,
     n_residuals_per_layer=1,  # Change to 2 if we have MLP
 ):
+    '''
+    Inizializza i pesi del modello.
+    Vengono previsti 3 casi. I primi due riguardano:
+    1) una rete Fully-Connected (per la quale si inizializzano random weights e bias=0)
+    2) un modello di Embedding (per il quale i pesi si inizializzano random secondo una normale)
+    
+    Il terzo caso non ho ben capito.
+    
+    Comunque sia, questa funzione fa sì che, qualsiasi sia il modelo che si usa, i pesi vengano inizializzati in maniera corretta, in modo da garantire la convergenza del modello.
+    '''
     if isinstance(module, nn.Linear):
+        # Se il modulo è di tipo nn.Linear
         if module.bias is not None:
+            # Se è previsto un bias
             if not getattr(module.bias, "_no_reinit", False):
-                nn.init.zeros_(module.bias)
+                nn.init.zeros_(module.bias) # Inizializza i bias a 0
+                # Gli altri pesi vengono inizializati automaticamente da nn.Linear
     elif isinstance(module, nn.Embedding):
-        nn.init.normal_(module.weight, std=initializer_range)
+        # Se invece il modulo è di tipo nn.Embedding
+        nn.init.normal_(module.weight, std=initializer_range) # Inizializza pesi random distribuiti secondo una normale con una certa deviazione standard (std)
 
-    if rescale_prenorm_residual:
+    if rescale_prenorm_residual: # Se invece c'è questo parametro è True, sa quest'altra tecnica proposta nel " OpenAI GPT-2 Paper Scheme"
         # Reinitialize selected weights subject to the OpenAI GPT-2 Paper Scheme:
         #   > A modified initialization which accounts for the accumulation on the residual path with model depth. Scale
         #   > the weights of residual layers at initialization by a factor of 1/√N where N is the # of residual layers.
@@ -171,6 +194,8 @@ def _init_weights(
 
 
 def segm_init_weights(m):
+    '''
+    Non ho ben capito quando possa essere usata, ma questa funzione inizializza dei pesi, usando una Normale Tronncata (nel caso di un nn.Linear), oppure setta i bias=0 e i pesi=1 nel caso di nn.LayerNorm'''
     if isinstance(m, nn.Linear):
         trunc_normal_(m.weight, std=0.02)
         if isinstance(m, nn.Linear) and m.bias is not None:
@@ -181,7 +206,9 @@ def segm_init_weights(m):
 
 
 class PatchEmbed(nn.Module):
-    """ Image to Patch Embedding
+    """ 
+    Image to Patch Embedding.
+    Prende in input un'immagine e la proietta in "num_patches" "patch_size"x"patch_size" embeddate, il cui embedding ha dimensione "embed_dim"
     """
     def __init__(self, img_size=224, patch_size=16, kernel_size=1, in_chans=3, embed_dim=768):
         super().__init__()
@@ -193,12 +220,13 @@ class PatchEmbed(nn.Module):
         self.num_patches = num_patches
         self.tubelet_size = kernel_size
 
+        # La proiezione avviene tramite un layer di 3D Convolution;
         self.proj = nn.Conv3d(
             in_chans, embed_dim, 
             kernel_size=(kernel_size, patch_size[0], patch_size[1]),
             stride=(kernel_size, patch_size[0], patch_size[1])
         )
-
+    
     def forward(self, x):
         x = self.proj(x)
         return x

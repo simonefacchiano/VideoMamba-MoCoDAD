@@ -34,8 +34,8 @@ except ImportError:
 class Mamba(nn.Module):
     def __init__(
         self,
-        d_model,
-        d_state=16,
+        d_model, # dimension of the model input
+        d_state=16, # The number of states in the SSM (?)
         d_conv=4,
         expand=2,
         dt_rank="auto",
@@ -106,7 +106,7 @@ class Mamba(nn.Module):
         self.dt_proj.bias._no_reinit = True
 
         # S4D real initialization
-        # NOTE: why plus 1?
+        # NOTE: why plus 1? --> non ce l'ho scritta io, è una nota che gli autori hanno lasciato
         A = repeat(
             torch.arange(1, self.d_state + 1, dtype=torch.float32, device=device),
             "n -> d n",
@@ -157,12 +157,13 @@ class Mamba(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
-        batch, seqlen, dim = hidden_states.shape
+        # It first retrieves the batch size, sequence length, and hidden dimension size from the hidden_states tensor.
+        batch, seqlen, dim = hidden_states.shape 
 
         conv_state, ssm_state = None, None
-        if inference_params is not None:
+        if inference_params is not None: # cioè se siamo in inference_mode
             conv_state, ssm_state = self._get_states_from_cache(inference_params, batch)
-            if inference_params.seqlen_offset > 0:
+            if inference_params.seqlen_offset > 0: # cioè se stiamo continuando a generare
                 # The states are updated inplace
                 out, _, _ = self.step(hidden_states, conv_state, ssm_state)
                 return out

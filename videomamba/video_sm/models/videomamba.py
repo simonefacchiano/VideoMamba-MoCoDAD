@@ -250,7 +250,7 @@ class VisionMamba(nn.Module):
             fused_add_norm=True,
             rms_norm=True, 
             residual_in_fp32=True,
-            bimamba=True, # il codice di questo lo trovi in mamba -> modules -> mamba_simple, dove inizia con "forked from https://github.com/hustvl/Vim"
+            bimamba=True, # il codice di questo lo trovi in mamba -> modules -> mamba_simple, dove inizia con "forked from https://github.com/hustvl/Vim". Questo parametro lo richiama più giù quando crea diversi Mamba layers
             # video
             kernel_size=1, 
             num_frames=8, 

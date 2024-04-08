@@ -443,7 +443,7 @@ class BiMambaInnerFn(torch.autograd.Function):
                 A, A_b, B=None, C=None, D=None, delta_bias=None, B_proj_bias=None,
                 C_proj_bias=None, delta_softplus=True, checkpoint_lvl=1):
         """
-             xz: (batch, dim, seqlen)
+        xz: (batch, dim, seqlen)
         """
         assert checkpoint_lvl in [0, 1]
         L = xz.shape[-1]

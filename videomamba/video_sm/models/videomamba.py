@@ -303,7 +303,7 @@ class VisionMamba(nn.Module):
         self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
         
         # Mamba blocks:
-        # come scritto nel paper: "The tokens X are then passed through by L stacked B-Mamba blocks"
+        # come scritto nel paper: "The tokens X are then passed through by L stacked Bi-Mamba blocks"
         self.layers = nn.ModuleList(
             [
                 create_block(

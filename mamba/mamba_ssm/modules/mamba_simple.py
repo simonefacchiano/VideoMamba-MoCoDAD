@@ -15,8 +15,9 @@ try:
 except ImportError:
     causal_conv1d_fn, causal_conv1d_update = None
 
+# Qui importa il bidirectional mamba! (bi-mamba) La modifica è quindi nel codice mamba originale, non nel file videomamba.py
 try:
-    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, mamba_inner_fn, bimamba_inner_fn, mamba_inner_fn_no_out_proj
+    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, mamba_inner_fn, bimamba_inner_fn, mamba_inner_fn_no_out_proj 
 except ImportError:
     selective_scan_fn, mamba_inner_fn, bimamba_inner_fn, mamba_inner_fn_no_out_proj = None, None, None, None, None
 
@@ -34,29 +35,33 @@ except ImportError:
 class Mamba(nn.Module):
     def __init__(
         self,
-        d_model, # dimension of the model input
-        d_state=16, # The number of states in the SSM (?)
-        d_conv=4,
-        expand=2,
-        dt_rank="auto",
+        d_model, # Questa è la dimensione dell'input
+        d_state=16, # The dimension of (latent) states in the SSM (?)
+        d_conv=4, # Dimension of the convolutional kernel
+        expand=2, # Expansion factor for the input projection
+        # Questi con "dt" dovrebbero essere tutti parametri legati alla discretizzazione
+        dt_rank="auto", # Rank of the learnable time step matrix
         dt_min=0.001,
         dt_max=0.1,
         dt_init="random",
         dt_scale=1.0,
         dt_init_floor=1e-4,
-        conv_bias=True,
-        bias=False,
+        conv_bias=True, # bias in convolutional layers
+        bias=False, # bias in linear layers
         use_fast_path=True,  # Fused kernel options
         layer_idx=None,
         device=None,
         dtype=None,
-        bimamba=True,
+        bimamba=True, # referred to bi-directional mamba
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
         self.d_model = d_model
         self.d_state = d_state
         self.d_conv = d_conv
+        # Qui occhio: l'input del blocco Mamba è un tensore di dimensione "d_model".
+        # Questo tensore viene mappato in uno spazio di dimension "d_inner". Questo viene fatto settando un parametro di espansione, "expand",
+        # e poi semplicemente facendo d_inner = expand * d_model
         self.expand = expand
         self.d_inner = int(self.expand * self.d_model)
         self.dt_rank = math.ceil(self.d_model / 16) if dt_rank == "auto" else dt_rank
@@ -64,8 +69,10 @@ class Mamba(nn.Module):
         self.layer_idx = layer_idx
         self.bimamba = bimamba
 
+        # Questo è il primo trapezio verde della Figure 3 (tutto a destra) del paper di Mamba --> LINEAR PROJECTION
         self.in_proj = nn.Linear(self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs)
 
+        # Questo è il primo rettangolo blu della stessa figura --> SEQUENCE TRANSFORMATION
         self.conv1d = nn.Conv1d(
             in_channels=self.d_inner,
             out_channels=self.d_inner,
@@ -76,9 +83,11 @@ class Mamba(nn.Module):
             **factory_kwargs,
         )
 
+        # Questa è la sigma che sta nel cerchio arancione della stessa figura --> NONLINEARITY (ACTIVATION)
         self.activation = "silu"
         self.act = nn.SiLU()
 
+        # Qui ammetto che non ho capito che stanno
         self.x_proj = nn.Linear(
             self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
         )
@@ -106,7 +115,7 @@ class Mamba(nn.Module):
         self.dt_proj.bias._no_reinit = True
 
         # S4D real initialization
-        # NOTE: why plus 1? --> non ce l'ho scritta io, è una nota che gli autori hanno lasciato
+        # NOTE: why plus 1? --> è una nota che gli autori hanno lasciato
         A = repeat(
             torch.arange(1, self.d_state + 1, dtype=torch.float32, device=device),
             "n -> d n",
@@ -120,9 +129,12 @@ class Mamba(nn.Module):
         self.D = nn.Parameter(torch.ones(self.d_inner, device=device))  # Keep in fp32
         self.D._no_weight_decay = True
 
-        # bidirectional
-        # forked from https://github.com/hustvl/Vim
+
+        #### BI-DIRECTIONAL MAMBA (BIMAMBA) ####
+        # Bimamba processes information in both the forward and backward directions within a sequence. This allows it to capture both past and future context for each element, potentially leading to better performance in tasks that benefit from such understanding.
+        # ---------- forked from https://github.com/hustvl/Vim ----------
         if self.bimamba:
+            # Da qui in poi, quando leggi "_b", dovrebbe significare "backward"
             A_b = repeat(
                 torch.arange(1, self.d_state + 1, dtype=torch.float32, device=device),
                 "n -> d n",
@@ -132,6 +144,7 @@ class Mamba(nn.Module):
             self.A_b_log = nn.Parameter(A_b_log)
             self.A_b_log._no_weight_decay = True 
 
+            # Questo è quello che sta nel paper VideoMamba. Dovrebbe essere il riquadro verde "sbiadito" e trattegiato in Figure 2
             self.conv1d_b = nn.Conv1d(
                 in_channels=self.d_inner,
                 out_channels=self.d_inner,
@@ -142,14 +155,19 @@ class Mamba(nn.Module):
                 **factory_kwargs,
             )
 
+            # Questo è ancora un grande BHO
             self.x_proj_b = nn.Linear(
                 self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
             )
             self.dt_proj_b = nn.Linear(self.dt_rank, self.d_inner, bias=True, **factory_kwargs)
 
+            # E qui ha senso. Prima si è definito A_b, ora giustamente si definisce D_b
             self.D_b = nn.Parameter(torch.ones(self.d_inner, device=device))  # Keep in fp32
             self.D_b._no_weight_decay = True
 
+        # NOTE: questo non è nel blocco di "if bimamba = True: ..."
+        # Questa è proprio la proiezioe finale del blocco Mamba! Prende in input un tensore di dimensione "d_inner", e ne restituisce uno di dimensione "d_model".
+        # Questa è la classica cosa che accade quando facciamo uo stack di blocchi identici, perché è fatto in modo che gli input matchino
         self.out_proj = nn.Linear(self.d_inner, self.d_model, bias=bias, **factory_kwargs)
 
     def forward(self, hidden_states, inference_params=None, T=1):
@@ -183,7 +201,7 @@ class Mamba(nn.Module):
         if self.use_fast_path and inference_params is None:  # Doesn't support outputting the states
             if self.bimamba:
                 A_b = -torch.exp(self.A_b_log.float())
-                out = mamba_inner_fn_no_out_proj(
+                out = mamba_inner_fn_no_out_proj( # Questa funzione la trovi nel file "ops" di mamba
                     xz,
                     self.conv1d.weight,
                     self.conv1d.bias,

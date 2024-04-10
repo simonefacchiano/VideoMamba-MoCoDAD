@@ -1,4 +1,4 @@
-#apex==0.1 # --> Errore
+# apex==0.1
 av==11.0.0
 decord==0.6.0
 deepspeed==0.13.1
@@ -19,15 +19,14 @@ regex==2023.10.3
 Requests==2.31.0
 scipy==1.12.0
 setuptools==68.2.2
-#skimage==0.0 # --> Errore
+# skimage==0.0 
 submitit==1.5.1
 tensorboardX==2.6.2.2
 tensorflow==2.16.1
 termcolor==2.4.0
-timm==0.4.12 # -> Credo errore anche qui
-torch==2.1.1 #+cu118        # questo era commentato
-torchvision==0.16.1 #+cu118 # questo era commentato
-tqdm==4.66.1
+timm==0.4.12
+# torch==2.1.1+cu118
+# torchvision==0.16.1+cu118tqdm==4.66.1
 transformers==4.36.1
 wandb==0.16.2
 wheel==0.42.0

@@ -4,8 +4,8 @@ export OMP_NUM_THREADS=1
 JOB_NAME='videomamba_middle_f32_res224'
 OUTPUT_DIR="$(dirname $0)/$JOB_NAME"
 LOG_DIR="./logs/${JOB_NAME}"
-PREFIX='your_coin_path'
-DATA_PATH='your_coin_metadata_path'
+PREFIX='/media/hdd/simone/coin/full_npy'
+DATA_PATH='/media/hdd/simone/coin/full_npy'
 
 PARTITION='video5'
 GPUS=8
@@ -21,7 +21,7 @@ srun -p $PARTITION \
         --kill-on-bad-exit=1 \
         python run_class_finetuning.py \
         --model videomamba_middle \
-        --finetune your_model_path/videomamba_m16_k400_f32_res224.pth \
+        --finetune /media/hdd/aleflabo/breakfast/pretrained/videomamba_m16_k400_mask_ft_f32_res224.pth \
         --data_path ${DATA_PATH} \
         --prefix ${PREFIX} \
         --data_set 'Kinetics_sparse' \

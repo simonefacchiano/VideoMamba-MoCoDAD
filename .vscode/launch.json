@@ -1,0 +1,46 @@
+{
+    // Usare IntelliSense per informazioni sui possibili attributi.
+    // Al passaggio del mouse vengono visualizzate le descrizioni degli attributi esistenti.
+    // Per altre informazioni, visitare: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debugger Python: File corrente",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run_class_finetuning.py",
+            "console": "integratedTerminal",
+            "cwd": "/media/hdd/simone/VideoMamba-MoCoDAD/videomamba/video_sm",
+            "args": ["--model=videomamba_middle", "--data_path=/media/hdd/simone/train_fixed","--prefix=/media/hdd/simone/train_fixed",
+            "--data_set=Breakfast",
+            "--finetune=/media/hdd/aleflabo/breakfast/pretrained/videomamba_m16_k400_mask_ft_f32_res224.pth",
+            "--split=','",
+            "--nb_classes=10",
+            "--log_dir=videomamba_middle_f32_res224",
+            "--output_dir=videomamba_middle_f32_res224",
+            "--batch_size=8",
+            "--num_sample=2",
+            "--input_size=224",
+            "--short_side_size=224",
+            "--save_ckpt_freq=100",
+            "--num_frames=32",
+            "--orig_t_size=32",
+            "--num_workers=12",
+            "--warmup_epochs=5",
+            "--tubelet_size=1",
+            "--epochs=45",
+            "--lr=2e-4",
+            "--layer_decay=0.8",
+            "--drop_path=0.4" ,
+            "--opt=adamw",
+            // "--opt_betas"," 0.9 0.999", // se passi solo 0.9 funziona... in parte. Ci va aggiunto 0.999
+            "--weight_decay=0.05",
+            "--test_num_segment=4",
+            "--test_num_crop=3",
+            "--dist_eval",
+            "--test_best",
+            "--disable_eval_during_finetuning"
+            ]
+        }
+    ]
+}

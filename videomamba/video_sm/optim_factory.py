@@ -142,6 +142,9 @@ def create_optimizer(
     elif opt_lower == 'adam':
         optimizer = optim.Adam(parameters, **opt_args)
     elif opt_lower == 'adamw':
+        print("parameters length:", len(parameters)) #@simone
+        
+        print("opt_args:", opt_args) #@simone for debugging
         optimizer = optim.AdamW(parameters, **opt_args)
     elif opt_lower == 'nadam':
         optimizer = Nadam(parameters, **opt_args)

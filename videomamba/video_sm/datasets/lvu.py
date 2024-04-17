@@ -15,6 +15,14 @@ from .random_erasing import RandomErasing
 from .video_transforms import CenterCrop, Compose, Normalize, Resize, uniform_crop
 from .volume_transforms import ClipToTensor
 
+# Modified by @simone
+from .video_transforms import (
+    Compose, Resize, CenterCrop, Normalize,
+    create_random_augment, random_short_side_scale_jitter, 
+    random_crop, random_resized_crop_with_shift, random_resized_crop,
+    horizontal_flip, random_short_side_scale_jitter, uniform_crop, 
+)
+
 try:
     from petrel_client.client import Client
 
@@ -83,15 +91,16 @@ class LVU(Dataset):
 
         # modified by @ale
         # reading the csv with header=None is not correct for the breakfast dataset
-        # cleaned = pd.read_csv(self.anno_path, header=None, delimiter=self.split)
-        cleaned = pd.read_csv(self.anno_path, delimiter=self.split)
+        #cleaned = pd.read_csv(self.anno_path, header=None, delimiter=self.split)
+        cleaned = pd.read_csv(self.anno_path) #@simone ho tolto questo: , delimiter=self.split
 
         self.ori_dataset_samples = list(cleaned.values[:, 0])
         # modified by @ale
         # for the breakfast dataset, the label is in the second column while duration in first
         # self.ori_label_array = list(cleaned.values[:, 1])
         # self.ori_duration_array = list(cleaned.values[:, 2])
-        self.ori_label_array = list(cleaned.values[:, 2])
+        print(f'----- QUESTO LO HA FATTO SIMONE: il csv che legge è: {anno_path} ------')
+        self.ori_label_array = list(cleaned.values[:, 3])
         self.ori_duration_array = list(cleaned.values[:, 1])
 
         # 裁剪原始视频

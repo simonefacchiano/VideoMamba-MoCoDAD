@@ -7,8 +7,8 @@ export OMP_NUM_THREADS=1
 JOB_NAME='videomamba_middle_f32_res224'
 OUTPUT_DIR="$(dirname $0)/$JOB_NAME"
 LOG_DIR="./logs/${JOB_NAME}"
-PREFIX='/media/hdd/aleflabo/breakfast/'
-DATA_PATH='/media/hdd/aleflabo/breakfast/'
+PREFIX='/media/hdd/simone/train_fixed' #'/media/hdd/aleflabo/breakfast'
+DATA_PATH='/media/hdd/simone/train_fixed' #'/media/hdd/aleflabo/breakfast'
 
 PARTITION='video5'
 GPUS=1

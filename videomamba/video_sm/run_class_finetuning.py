@@ -115,7 +115,7 @@ def get_args():
         default=None,
         type=float,
         nargs="+",
-        metavar="BETA",
+        metavar="BETA1", 
         help="Optimizer Betas (default: None, use opt default)",
     )
     parser.add_argument(

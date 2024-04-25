@@ -449,8 +449,8 @@ def main(args, ds_init):
     print("Sampler_train = %s" % str(sampler_train))
     if args.dist_eval:
         # modified by @ale: breakfast does not have a validation csv
-        # if len(dataset_val) % num_tasks != 0:
-        if len(dataset_test) % num_tasks != 0:
+        if len(dataset_val) % num_tasks != 0:
+        #if len(dataset_test) % num_tasks != 0:
 
             print(
                 "Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. "
@@ -458,8 +458,8 @@ def main(args, ds_init):
                 "equal num of samples per-process."
             )
         # modified by @ale:
-        # sampler_val = torch.utils.data.DistributedSampler(
-        #     dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+        sampler_val = torch.utils.data.DistributedSampler(
+            dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
         sampler_test = torch.utils.data.DistributedSampler(
             dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=False
         )

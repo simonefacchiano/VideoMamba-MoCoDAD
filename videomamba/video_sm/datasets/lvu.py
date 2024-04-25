@@ -91,17 +91,17 @@ class LVU(Dataset):
 
         # modified by @ale
         # reading the csv with header=None is not correct for the breakfast dataset
-        #cleaned = pd.read_csv(self.anno_path, header=None, delimiter=self.split)
-        cleaned = pd.read_csv(self.anno_path) #@simone ho tolto questo: , delimiter=self.split
+        cleaned = pd.read_csv(self.anno_path, header=None, delimiter=self.split)
+        #cleaned = pd.read_csv(self.anno_path) #@simone ho tolto questo: , delimiter=self.split
 
         self.ori_dataset_samples = list(cleaned.values[:, 0])
         # modified by @ale
         # for the breakfast dataset, the label is in the second column while duration in first
-        # self.ori_label_array = list(cleaned.values[:, 1])
-        # self.ori_duration_array = list(cleaned.values[:, 2])
-        print(f'----- QUESTO LO HA FATTO SIMONE: il csv che legge è: {anno_path} ------')
-        self.ori_label_array = list(cleaned.values[:, 3])
-        self.ori_duration_array = list(cleaned.values[:, 1])
+        self.ori_label_array = list(cleaned.values[:, 1])
+        self.ori_duration_array = list(cleaned.values[:, 2])
+        #print(f'----- QUESTO LO HA FATTO SIMONE: il csv che legge è: {anno_path} ------')
+        #self.ori_label_array = list(cleaned.values[:, 3])
+        #self.ori_duration_array = list(cleaned.values[:, 1])
 
         # 裁剪原始视频
         self.dataset_samples = []
